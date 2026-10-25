@@ -42,18 +42,35 @@ def inject_persona(body: dict) -> dict:
     messages = body.get("messages")
     if not isinstance(messages, list):
         return body
-    if messages and messages[0].get("role") == "system":
-        existing = messages[0].get("content") or ""
-        if PERSONA in str(existing):
-            return body
-        # NOTE (2026-10-25, user hypothesis, unproven): windking may strip
-        # lowercase "system" at entry, so try capital "System" for the
-        # injected persona only. This is non-standard OpenAI role casing;
-        # if upstream rejects/drops it, revert to "system".
-        messages = [{"role": "System", "content": PERSONA}] + messages
-    else:
-        messages = [{"role": "System", "content": PERSONA}] + messages
-    body["messages"] = messages
+    # 2026-10-25 user-requested change, test only: do NOT insert a new
+    # system message when one already exists. Append persona to the
+    # existing system message's content, and rewrite lowercase
+    # "system"/"developer" roles to capital "System".
+    # NOTE: capital "System" is non-standard OpenAI role casing and
+    # rewriting "developer" may change how upstream treats developer
+    # instructions / tools. If upstream rejects/drops it, revert.
+    found_system = False
+    new_messages = []
+    for m in messages:
+        if not isinstance(m, dict):
+            new_messages.append(m)
+            continue
+        role = m.get("role")
+        if isinstance(role, str) and role.lower() in ("system", "developer"):
+            # Rewrite role casing for all system/developer messages.
+            m = dict(m)
+            m["role"] = "System"
+            if not found_system:
+                found_system = True
+                content = m.get("content") or ""
+                if PERSONA not in str(content):
+                    m["content"] = str(content) + "\n\n" + PERSONA
+            new_messages.append(m)
+        else:
+            new_messages.append(m)
+    if not found_system:
+        new_messages = [{"role": "System", "content": PERSONA}] + new_messages
+    body["messages"] = new_messages
     return body
 
 
