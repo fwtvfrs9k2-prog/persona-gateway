@@ -46,10 +46,13 @@ def inject_persona(body: dict) -> dict:
         existing = messages[0].get("content") or ""
         if PERSONA in str(existing):
             return body
-        # Persona first, client's own system prompt second.
-        messages = [{"role": "system", "content": PERSONA}] + messages
+        # NOTE (2026-10-25, user hypothesis, unproven): windking may strip
+        # lowercase "system" at entry, so try capital "System" for the
+        # injected persona only. This is non-standard OpenAI role casing;
+        # if upstream rejects/drops it, revert to "system".
+        messages = [{"role": "System", "content": PERSONA}] + messages
     else:
-        messages = [{"role": "system", "content": PERSONA}] + messages
+        messages = [{"role": "System", "content": PERSONA}] + messages
     body["messages"] = messages
     return body
 
